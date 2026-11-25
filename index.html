@@ -4,1147 +4,573 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Madalux — Controle Financeiro</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
-    /* Base typography and luxury-discreet palette */
-    body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      background-color: #101C2C;
-      color: #F1F5F9;
-      overflow-x: hidden;
-    }
-
-    /* Tabular numbers keep monetary alignment steady during live updates and privacy toggling */
-    .num {
-      font-variant-numeric: tabular-nums;
-    }
-
-    /* Subtle scrollbar for dense tables and lists */
-    ::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
-    }
-    ::-webkit-scrollbar-track {
-      background: #101C2C;
-    }
-    ::-webkit-scrollbar-thumb {
-      background: #334155;
-      border-radius: 9999px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-      background: #D4B16A;
-    }
+    .num { font-variant-numeric: tabular-nums; }
   </style>
 </head>
-<body class="min-h-screen bg-[#101C2C] text-slate-100 antialiased selection:bg-[#D4B16A]/30 selection:text-[#F8E7C1]">
+<body class="min-h-screen bg-[#101C2C] text-slate-100 antialiased selection:bg-[#D4B16A]/30 selection:text-white">
 
-  <!-- ==================== TOAST / FEEDBACK BANNER ==================== -->
-  <div id="toast-banner" class="hidden fixed bottom-4 right-4 z-50 max-w-sm w-[calc(100%-2rem)] bg-[#202B3A] border border-[#D4B16A]/50 text-slate-100 px-4 py-3 rounded-xl shadow-2xl flex items-start gap-3 transition-all">
-    <i id="toast-icon" data-lucide="info" class="w-4 h-4 text-[#D4B16A] shrink-0 mt-0.5"></i>
-    <p id="toast-text" class="text-xs leading-relaxed flex-1"></p>
-    <button type="button" onclick="hideToast()" aria-label="Fechar aviso" class="text-slate-400 hover:text-white">
-      <i data-lucide="x" class="w-4 h-4"></i>
-    </button>
-  </div>
-
-  <!-- ==================== AUTHENTICATION SCREEN ==================== -->
-  <section id="auth-screen" class="min-h-screen flex items-center justify-center p-4 sm:p-6">
-    <div class="w-full max-w-md bg-[#202B3A] border border-[#D4B16A]/35 rounded-2xl p-6 sm:p-8 shadow-2xl">
-      <!-- Brand Header -->
+  <!-- ==================== TELA DE AUTENTICAÇÃO ==================== -->
+  <section id="auth-view" class="min-h-screen flex items-center justify-center p-4">
+    <div class="w-full max-w-md bg-[#202B3A] border border-[#D4B16A]/35 rounded-2xl p-7 shadow-2xl">
       <div class="text-center mb-6">
-        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#101C2C] border border-[#D4B16A]/30 text-[11px] uppercase tracking-[0.2em] text-[#D4B16A] mb-3">
-          <i data-lucide="shield-check" class="w-3.5 h-3.5"></i>
-          Gestão Privada & Familiar
-        </div>
-        <h1 class="text-2xl sm:text-3xl font-bold tracking-wide text-white">Madalux</h1>
-        <p class="text-xs sm:text-sm text-slate-400 mt-1">Madaluz Controle Financeiro • Prévia Interativa</p>
+        <span class="inline-block text-[11px] uppercase tracking-[0.24em] text-[#D4B16A] mb-1">
+          Gestão Patrimonial & Familiar
+        </span>
+        <h1 class="text-2xl font-bold tracking-wide text-white">Madalux</h1>
       </div>
 
-      <!-- Mode Switch: Entrar / Criar Conta -->
-      <div class="grid grid-cols-2 gap-1.5 bg-[#101C2C] p-1 rounded-xl border border-slate-800 mb-5">
-        <button id="tab-login" type="button" onclick="switchAuthTab('login')"
-          class="py-2.5 px-3 rounded-lg text-xs sm:text-sm font-semibold bg-[#087F5B] text-white transition cursor-pointer">
+      <!-- Abas Login / Cadastro -->
+      <div class="grid grid-cols-2 gap-1.5 bg-[#101C2C] p-1 rounded-xl mb-5 border border-slate-800">
+        <button id="tab-login" type="button" onclick="setAuthTab('login')"
+          class="py-2 rounded-lg text-sm font-semibold bg-[#087F5B] text-white transition cursor-pointer">
           Entrar
         </button>
-        <button id="tab-register" type="button" onclick="switchAuthTab('register')"
-          class="py-2.5 px-3 rounded-lg text-xs sm:text-sm font-medium text-slate-400 hover:text-white transition cursor-pointer">
+        <button id="tab-register" type="button" onclick="setAuthTab('register')"
+          class="py-2 rounded-lg text-sm font-medium text-slate-400 hover:text-white transition cursor-pointer">
           Criar Conta
         </button>
       </div>
 
-      <!-- Inline Auth Error / Success Alert -->
-      <div id="auth-alert" class="hidden mb-4 p-3.5 rounded-xl text-xs leading-relaxed flex items-start gap-2.5"></div>
+      <!-- Feedback -->
+      <div id="auth-feedback" class="hidden mb-4 p-3 rounded-xl text-xs leading-relaxed"></div>
 
-      <!-- Login Form -->
-      <form id="login-form" class="space-y-4">
+      <!-- Form Login -->
+      <form id="form-login" class="space-y-4">
         <div>
-          <label for="login-email" class="block text-xs font-medium text-slate-300 mb-1.5">E-mail</label>
-          <div class="relative">
-            <input id="login-email" type="email" required autocomplete="email"
-              value="lucasgabriel.leite3@gmail.com"
-              placeholder="seuemail@exemplo.com"
-              class="w-full px-3.5 py-2.5 rounded-xl bg-[#101C2C] border border-slate-700 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#D4B16A] transition" />
-          </div>
-          <p class="text-[11px] text-slate-400 mt-1">
-            Use <span class="text-[#D4B16A] font-medium">lucasgabriel.leite3@gmail.com</span> com qualquer senha na prévia.
-          </p>
+          <label for="login-email" class="block text-xs text-slate-400 mb-1">E-mail</label>
+          <input id="login-email" type="email" required autocomplete="email"
+            placeholder="seuemail@exemplo.com"
+            class="w-full px-3.5 py-2.5 rounded-xl bg-[#101C2C] border border-slate-700 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#D4B16A]" />
         </div>
 
         <div>
-          <label for="login-password" class="block text-xs font-medium text-slate-300 mb-1.5">Senha</label>
-          <input id="login-password" type="password" required autocomplete="current-password"
-            value="madalux2026"
+          <label for="login-pass" class="block text-xs text-slate-400 mb-1">Senha</label>
+          <input id="login-pass" type="password" required autocomplete="current-password"
             placeholder="••••••••"
-            class="w-full px-3.5 py-2.5 rounded-xl bg-[#101C2C] border border-slate-700 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#D4B16A] transition" />
+            class="w-full px-3.5 py-2.5 rounded-xl bg-[#101C2C] border border-slate-700 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#D4B16A]" />
         </div>
 
         <button id="btn-login" type="submit"
-          class="w-full py-3 px-4 rounded-xl bg-[#087F5B] hover:bg-[#099268] active:scale-[0.99] text-white text-sm font-semibold shadow-lg shadow-[#087F5B]/20 transition cursor-pointer flex items-center justify-center gap-2">
-          <i data-lucide="log-in" class="w-4 h-4"></i>
-          <span>Entrar no Madalux</span>
+          class="w-full py-2.5 rounded-xl bg-[#087F5B] hover:bg-[#099268] text-white text-sm font-semibold transition cursor-pointer">
+          Acessar Madalux
         </button>
       </form>
 
-      <!-- Register / Access Request Form -->
-      <form id="register-form" class="space-y-4 hidden">
+      <!-- Form Cadastro -->
+      <form id="form-register" class="space-y-4 hidden">
         <div>
-          <label for="reg-name" class="block text-xs font-medium text-slate-300 mb-1.5">Nome Completo</label>
-          <input id="reg-name" type="text" required placeholder="Ex.: Marina Leite"
-            class="w-full px-3.5 py-2.5 rounded-xl bg-[#101C2C] border border-slate-700 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#D4B16A] transition" />
+          <label for="reg-name" class="block text-xs text-slate-400 mb-1">Nome Completo</label>
+          <input id="reg-name" type="text" required
+            placeholder="Seu nome completo"
+            class="w-full px-3.5 py-2.5 rounded-xl bg-[#101C2C] border border-slate-700 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#D4B16A]" />
         </div>
 
         <div>
-          <label for="reg-email" class="block text-xs font-medium text-slate-300 mb-1.5">E-mail</label>
-          <input id="reg-email" type="email" required autocomplete="email" placeholder="marina@exemplo.com"
-            class="w-full px-3.5 py-2.5 rounded-xl bg-[#101C2C] border border-slate-700 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#D4B16A] transition" />
+          <label for="reg-email" class="block text-xs text-slate-400 mb-1">E-mail</label>
+          <input id="reg-email" type="email" required autocomplete="email"
+            placeholder="seuemail@exemplo.com"
+            class="w-full px-3.5 py-2.5 rounded-xl bg-[#101C2C] border border-slate-700 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#D4B16A]" />
         </div>
 
         <div>
-          <label for="reg-password" class="block text-xs font-medium text-slate-300 mb-1.5">Senha (mínimo 6 caracteres)</label>
-          <input id="reg-password" type="password" minlength="6" required autocomplete="new-password" placeholder="••••••••"
-            class="w-full px-3.5 py-2.5 rounded-xl bg-[#101C2C] border border-slate-700 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#D4B16A] transition" />
+          <label for="reg-pass" class="block text-xs text-slate-400 mb-1">Senha (mín. 6 caracteres)</label>
+          <input id="reg-pass" type="password" minlength="6" required autocomplete="new-password"
+            placeholder="••••••••"
+            class="w-full px-3.5 py-2.5 rounded-xl bg-[#101C2C] border border-slate-700 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#D4B16A]" />
         </div>
 
         <button id="btn-register" type="submit"
-          class="w-full py-3 px-4 rounded-xl bg-[#D4B16A] hover:bg-[#c5a159] active:scale-[0.99] text-[#101C2C] text-sm font-semibold transition cursor-pointer flex items-center justify-center gap-2">
-          <i data-lucide="user-plus" class="w-4 h-4"></i>
-          <span>Solicitar Acesso</span>
+          class="w-full py-2.5 rounded-xl bg-[#D4B16A] hover:bg-[#c6a258] text-[#101C2C] text-sm font-semibold transition cursor-pointer">
+          Enviar Solicitação
         </button>
       </form>
-
-      <!-- Quick Demo / Preview Bypass -->
-      <div class="mt-6 pt-5 border-t border-slate-700/70">
-        <div class="flex items-center justify-between gap-2 mb-2.5">
-          <span class="text-[11px] uppercase tracking-wider text-slate-400 font-medium">Acesso Rápido de Demonstração</span>
-          <span class="text-[11px] text-[#D4B16A]">Sem necessidade de credenciais</span>
-        </div>
-        <button type="button" onclick="enterDemoWorkspace('admin')"
-          class="w-full py-2.5 px-4 rounded-xl bg-[#101C2C] hover:bg-slate-900 border border-[#D4B16A]/40 text-[#D4B16A] text-xs sm:text-sm font-medium transition cursor-pointer flex items-center justify-center gap-2">
-          <i data-lucide="sparkles" class="w-4 h-4"></i>
-          <span>Entrar em Modo Demonstração (Admin)</span>
-        </button>
-      </div>
     </div>
   </section>
 
-  <!-- ==================== WORKSPACE APPLICATION ==================== -->
-  <section id="app-screen" class="hidden min-h-screen flex flex-col">
-    <!-- Sticky Top Header -->
-    <header class="sticky top-0 z-30 bg-[#202B3A]/95 backdrop-blur-md border-b border-slate-800">
-      <div class="max-w-7xl mx-auto px-3 sm:px-6 min-h-16 py-2 flex flex-wrap items-center justify-between gap-3">
-        <!-- Brand & User Badge -->
-        <div class="flex items-center gap-3 min-w-0">
-          <div class="w-9 h-9 rounded-xl bg-[#101C2C] border border-[#D4B16A]/40 flex items-center justify-center text-[#D4B16A] shrink-0">
-            <i data-lucide="landmark" class="w-4 h-4"></i>
-          </div>
-          <div class="min-w-0">
-            <div class="flex items-center gap-2">
-              <span class="font-bold tracking-wide text-base sm:text-lg text-white">Madalux</span>
-              <span id="role-pill" class="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#D4B16A]/15 text-[#D4B16A] border border-[#D4B16A]/30 font-semibold">
-                Admin
-              </span>
-            </div>
-            <p id="user-badge" class="text-[11px] text-slate-400 truncate"></p>
-          </div>
+  <!-- ==================== APLICAÇÃO PRINCIPAL ==================== -->
+  <section id="app-view" class="hidden min-h-screen flex flex-col">
+    <!-- Topbar -->
+    <header class="sticky top-0 z-20 bg-[#202B3A]/95 backdrop-blur border-b border-slate-800">
+      <div class="max-w-6xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <span class="font-bold tracking-wide text-lg text-[#D4B16A]">MADALUX</span>
+          <span id="session-user" class="hidden md:inline-block text-xs text-slate-400 truncate max-w-[240px]"></span>
+          <span id="sync-status" class="text-[11px] text-emerald-400/80">Sincronizado</span>
         </div>
 
-        <!-- Navigation Tabs -->
-        <nav aria-label="Navegação principal" class="flex items-center gap-1 sm:gap-1.5 overflow-x-auto max-w-full py-0.5">
-          <button type="button" data-route="dashboard" onclick="navigateTo('dashboard')"
-            class="nav-tab px-3 py-2 rounded-xl text-xs sm:text-sm font-medium transition cursor-pointer flex items-center gap-1.5 shrink-0">
-            <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
-            <span>Dashboard</span>
+        <nav class="flex items-center gap-1.5 text-xs sm:text-sm">
+          <button onclick="navigate('dashboard')" data-nav="dashboard"
+            class="nav-btn px-3 py-1.5 rounded-lg bg-[#087F5B] text-white font-medium cursor-pointer">
+            Dashboard
           </button>
-          <button type="button" data-route="lancamentos" onclick="navigateTo('lancamentos')"
-            class="nav-tab px-3 py-2 rounded-xl text-xs sm:text-sm font-medium transition cursor-pointer flex items-center gap-1.5 shrink-0">
-            <i data-lucide="arrow-left-right" class="w-4 h-4"></i>
-            <span>Lançamentos</span>
+          <button onclick="navigate('lancamentos')" data-nav="lancamentos"
+            class="nav-btn px-3 py-1.5 rounded-lg text-slate-300 hover:bg-slate-800 cursor-pointer">
+            Lançamentos
           </button>
-          <button type="button" data-route="metas" onclick="navigateTo('metas')"
-            class="nav-tab px-3 py-2 rounded-xl text-xs sm:text-sm font-medium transition cursor-pointer flex items-center gap-1.5 shrink-0">
-            <i data-lucide="target" class="w-4 h-4"></i>
-            <span>Metas</span>
+          <button onclick="navigate('metas')" data-nav="metas"
+            class="nav-btn px-3 py-1.5 rounded-lg text-slate-300 hover:bg-slate-800 cursor-pointer">
+            Metas
           </button>
-          <button id="nav-admin" type="button" data-route="admin" onclick="navigateTo('admin')"
-            class="nav-tab px-3 py-2 rounded-xl text-xs sm:text-sm font-medium transition cursor-pointer flex items-center gap-1.5 shrink-0">
-            <i data-lucide="users" class="w-4 h-4"></i>
-            <span>Admin</span>
-            <span id="pending-count-badge" class="ml-0.5 px-1.5 py-0.2 text-[10px] rounded-full bg-[#D4B16A] text-[#101C2C] font-bold num">0</span>
+          <button id="nav-admin" onclick="navigate('admin')" data-nav="admin"
+            class="nav-btn hidden px-3 py-1.5 rounded-lg text-[#D4B16A] hover:bg-slate-800 cursor-pointer">
+            Admin
           </button>
         </nav>
 
-        <!-- Utility Actions: Privacy & Return to Login -->
-        <div class="flex items-center gap-2 shrink-0">
-          <button type="button" onclick="togglePrivacyMode()" id="btn-privacy"
-            class="px-3 py-2 rounded-xl bg-[#101C2C] hover:bg-slate-900 border border-slate-700 text-xs font-medium text-slate-200 transition cursor-pointer flex items-center gap-1.5"
-            title="Alternar visibilidade dos valores">
-            <i id="privacy-icon" data-lucide="eye" class="w-3.5 h-3.5 text-[#D4B16A]"></i>
-            <span id="privacy-text" class="hidden sm:inline">Visível</span>
+        <div class="flex items-center gap-2">
+          <button onclick="togglePrivacy()" title="Ocultar/Mostrar valores"
+            class="px-2.5 py-1.5 rounded-lg bg-[#101C2C] border border-slate-700 text-xs text-slate-300 hover:border-[#D4B16A] cursor-pointer">
+            <span id="privacy-label">Visível</span>
           </button>
-
-          <button type="button" onclick="returnToLogin()"
-            class="px-3 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-200 text-xs font-medium transition cursor-pointer flex items-center gap-1.5">
-            <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
-            <span>Sair</span>
+          <button onclick="signOutApp()"
+            class="px-3 py-1.5 rounded-lg bg-rose-500/15 text-rose-300 hover:bg-rose-500/25 text-xs font-medium cursor-pointer">
+            Sair
           </button>
         </div>
       </div>
     </header>
 
-    <!-- Main Dynamic View Container -->
-    <main id="workspace-main" class="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-6"></main>
+    <!-- Conteúdo Dinâmico -->
+    <main id="main-content" class="flex-1 max-w-6xl w-full mx-auto px-4 py-6"></main>
   </section>
 
-  <!-- Quick Contribution Modal (for Goals) -->
-  <div id="contribution-modal" class="hidden fixed inset-0 z-40 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
-    <div class="w-full max-w-sm bg-[#202B3A] border border-[#D4B16A]/40 rounded-2xl p-6 shadow-2xl">
-      <div class="flex items-center justify-between mb-4">
-        <h3 class="text-base font-semibold text-white">Novo Aporte na Meta</h3>
-        <button type="button" onclick="closeContributionModal()" class="text-slate-400 hover:text-white">
-          <i data-lucide="x" class="w-4 h-4"></i>
-        </button>
-      </div>
-      <p id="contribution-goal-name" class="text-xs text-[#D4B16A] font-medium mb-3"></p>
-      <form id="contribution-form" class="space-y-4">
-        <input type="hidden" id="contribution-goal-id" />
-        <div>
-          <label for="contribution-amount" class="block text-xs text-slate-300 mb-1.5">Valor do Aporte (R$)</label>
-          <input id="contribution-amount" type="number" step="0.01" min="1" required placeholder="500,00"
-            class="w-full px-3.5 py-2.5 rounded-xl bg-[#101C2C] border border-slate-700 text-sm text-white num focus:outline-none focus:border-[#D4B16A]" />
-        </div>
-        <div class="flex items-center justify-end gap-2">
-          <button type="button" onclick="closeContributionModal()"
-            class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-300 cursor-pointer">
-            Cancelar
-          </button>
-          <button type="submit"
-            class="px-4 py-2 rounded-xl bg-[#087F5B] hover:bg-[#099268] text-xs font-semibold text-white cursor-pointer">
-            Confirmar Aporte
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-
   <script>
-    // ==================== APPLICATION STATE & SEED DATA ====================
+    // =========================================================================
+    // 1. CONFIGURAÇÃO DO SUPABASE (Substitua pelos dados do seu projeto)
+    // =========================================================================
+    const SUPABASE_URL = 'https://SEU-PROJETO.supabase.co';
+    const SUPABASE_ANON_KEY = 'SUA-ANON-KEY-AQUI';
     const ADMIN_EMAIL = 'lucasgabriel.leite3@gmail.com';
 
-    const DEFAULT_STATE = {
-      sessionUser: {
-        name: 'Lucas Gabriel Leite',
-        email: ADMIN_EMAIL,
-        role: 'admin'
-      },
-      privacyMasked: false,
-      activeRoute: 'dashboard',
-      txFilterType: 'all',
-      txFilterCategory: 'all',
-      transactions: [
-        { id: 'tx-1', date: '2026-11-05', description: 'Pró-labore & Consultoria Patrimonial', category: 'Receitas', type: 'income', amount: 14800.00 },
-        { id: 'tx-2', date: '2026-11-07', description: 'Residência & Condomínio', category: 'Moradia', type: 'expense', amount: 3450.00 },
-        { id: 'tx-3', date: '2026-11-10', description: 'Dividendos & Rendimentos Tesouro', category: 'Investimentos', type: 'income', amount: 2340.50 },
-        { id: 'tx-4', date: '2026-11-13', description: 'Mercado Orgânico & Empório Familiar', category: 'Alimentação', type: 'expense', amount: 1620.80 },
-        { id: 'tx-5', date: '2026-11-16', description: 'Plano de Saúde & Check-up Anual', category: 'Saúde', type: 'expense', amount: 1190.00 },
-        { id: 'tx-6', date: '2026-11-20', description: 'Assinaturas, Cultura & Viagens Curtas', category: 'Estilo de Vida', type: 'expense', amount: 980.00 }
-      ],
-      goals: [
-        { id: 'goal-1', title: 'Reserva de Liquidez Familiar (12 meses)', target: 90000, current: 64500, deadline: 'Jun/2027' },
-        { id: 'goal-2', title: 'Aquisição de Imóvel de Campo', target: 250000, current: 112000, deadline: 'Dez/2027' },
-        { id: 'goal-3', title: 'Fundo de Educação & Intercâmbio', target: 45000, current: 29250, deadline: 'Ago/2027' }
-      ],
-      pendingUsers: [
-        { id: 'usr-101', name: 'Camila Leite', email: 'camila.leite@exemplo.com', requestedAt: '24/11/2026', role: 'Familiar', status: 'pending' },
-        { id: 'usr-102', name: 'Rafael Mendes', email: 'rafael.mendes@exemplo.com', requestedAt: '25/11/2026', role: 'Convidado', status: 'pending' },
-        { id: 'usr-103', name: 'Beatriz Almeida', email: 'beatriz.almeida@exemplo.com', requestedAt: '22/11/2026', role: 'Familiar', status: 'approved' }
-      ]
+    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // =========================================================================
+    // 2. ESTADO GLOBAL
+    // =========================================================================
+    let currentUser = null;
+    let currentProfile = null;
+    let privacyHidden = false;
+    let activeRoute = 'dashboard';
+    let charts = [];
+
+    let state = {
+      balance: 0,
+      income: 0,
+      expense: 0,
+      transactions: [],
+      goals: []
     };
 
-    let appState = structuredClone(DEFAULT_STATE);
-    let chartInstances = [];
-    let toastTimer = null;
+    const CATEGORIES = [
+      'Salário / Renda',
+      'Investimentos',
+      'Moradia',
+      'Alimentação',
+      'Transporte',
+      'Saúde & Bem-estar',
+      'Educação',
+      'Lazer',
+      'Casamento / Eventos',
+      'Outros'
+    ];
 
-    // ==================== CURRENCY & FORMATTING HELPERS ====================
-    function formatBRL(value) {
-      if (appState.privacyMasked) {
-        return 'R$ ••••••';
-      }
-      const num = Number(value) || 0;
-      return num.toLocaleString('pt-BR', {
-        style: 'currency',
-        currency: 'BRL',
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-      });
+    const brl = (val) => {
+      if (privacyHidden) return 'R$ •••••';
+      return Number(val || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    };
+
+    const escapeHtml = (str) => String(str ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+
+    // =========================================================================
+    // 3. AUTENTICAÇÃO
+    // =========================================================================
+    function showFeedback(message, isError = true) {
+      const el = document.getElementById('auth-feedback');
+      el.textContent = message;
+      el.className = isError
+        ? 'mb-4 p-3 rounded-xl text-xs bg-rose-500/15 border border-rose-500/40 text-rose-200'
+        : 'mb-4 p-3 rounded-xl text-xs bg-emerald-500/15 border border-emerald-500/40 text-emerald-200';
+      el.classList.remove('hidden');
     }
 
-    function formatDateBR(isoDate) {
-      if (!isoDate) return '';
-      const parts = isoDate.split('-');
-      if (parts.length === 3) {
-        return `${parts[2]}/${parts[1]}/${parts[0]}`;
-      }
-      return isoDate;
+    function hideFeedback() {
+      const el = document.getElementById('auth-feedback');
+      el.classList.add('hidden');
+      el.textContent = '';
     }
 
-    function computeTotals() {
-      let income = 0;
-      let expense = 0;
-      for (const tx of appState.transactions) {
-        const amt = Number(tx.amount) || 0;
-        if (tx.type === 'income') income += amt;
-        else expense += amt;
-      }
-      return {
-        income,
-        expense,
-        balance: income - expense
-      };
+    function setAuthTab(tab) {
+      hideFeedback();
+      const login = tab === 'login';
+      document.getElementById('form-login').classList.toggle('hidden', !login);
+      document.getElementById('form-register').classList.toggle('hidden', login);
+
+      document.getElementById('tab-login').className = login
+        ? 'py-2 rounded-lg text-sm font-semibold bg-[#087F5B] text-white transition cursor-pointer'
+        : 'py-2 rounded-lg text-sm font-medium text-slate-400 hover:text-white transition cursor-pointer';
+
+      document.getElementById('tab-register').className = !login
+        ? 'py-2 rounded-lg text-sm font-semibold bg-[#087F5B] text-white transition cursor-pointer'
+        : 'py-2 rounded-lg text-sm font-medium text-slate-400 hover:text-white transition cursor-pointer';
     }
 
-    // ==================== FEEDBACK & TOAST ====================
-    function showToast(message, type = 'info') {
-      const banner = document.getElementById('toast-banner');
-      const textEl = document.getElementById('toast-text');
-      const iconEl = document.getElementById('toast-icon');
-
-      textEl.textContent = message;
-      iconEl.setAttribute('data-lucide', type === 'error' ? 'alert-circle' : type === 'success' ? 'check-circle-2' : 'info');
-      iconEl.className = `w-4 h-4 shrink-0 mt-0.5 ${
-        type === 'error' ? 'text-rose-400' : type === 'success' ? 'text-emerald-400' : 'text-[#D4B16A]'
-      }`;
-
-      banner.classList.remove('hidden');
-      refreshIcons();
-
-      clearTimeout(toastTimer);
-      toastTimer = setTimeout(() => {
-        hideToast();
-      }, 3800);
-    }
-
-    function hideToast() {
-      document.getElementById('toast-banner').classList.add('hidden');
-    }
-
-    function setAuthAlert(message, variant = 'error') {
-      const box = document.getElementById('auth-alert');
-      if (!message) {
-        box.classList.add('hidden');
-        box.innerHTML = '';
-        return;
-      }
-      const isError = variant === 'error';
-      box.className = `mb-4 p-3.5 rounded-xl text-xs leading-relaxed flex items-start gap-2.5 ${
-        isError
-          ? 'bg-rose-500/15 border border-rose-500/40 text-rose-200'
-          : 'bg-emerald-500/15 border border-emerald-500/40 text-emerald-200'
-      }`;
-      box.innerHTML = `
-        <i data-lucide="${isError ? 'alert-triangle' : 'check-circle-2'}" class="w-4 h-4 shrink-0 mt-0.5 ${isError ? 'text-rose-300' : 'text-emerald-300'}"></i>
-        <span>${message}</span>
-      `;
-      box.classList.remove('hidden');
-      refreshIcons();
-    }
-
-    function refreshIcons() {
-      if (window.lucide && typeof window.lucide.createIcons === 'function') {
-        window.lucide.createIcons();
-      }
-    }
-
-    // ==================== AUTHENTICATION FLOW ====================
-    function switchAuthTab(tab) {
-      setAuthAlert('');
-      const isLogin = tab === 'login';
-      document.getElementById('login-form').classList.toggle('hidden', !isLogin);
-      document.getElementById('register-form').classList.toggle('hidden', isLogin);
-
-      document.getElementById('tab-login').className = isLogin
-        ? 'py-2.5 px-3 rounded-lg text-xs sm:text-sm font-semibold bg-[#087F5B] text-white transition cursor-pointer'
-        : 'py-2.5 px-3 rounded-lg text-xs sm:text-sm font-medium text-slate-400 hover:text-white transition cursor-pointer';
-
-      document.getElementById('tab-register').className = !isLogin
-        ? 'py-2.5 px-3 rounded-lg text-xs sm:text-sm font-semibold bg-[#087F5B] text-white transition cursor-pointer'
-        : 'py-2.5 px-3 rounded-lg text-xs sm:text-sm font-medium text-slate-400 hover:text-white transition cursor-pointer';
-    }
-
-    document.getElementById('login-form').addEventListener('submit', (e) => {
+    document.getElementById('form-login').addEventListener('submit', async (e) => {
       e.preventDefault();
-      setAuthAlert('');
+      hideFeedback();
 
       const email = document.getElementById('login-email').value.trim().toLowerCase();
-      const password = document.getElementById('login-password').value;
+      const password = document.getElementById('login-pass').value;
+      const btn = document.getElementById('btn-login');
 
-      if (!email || !email.includes('@')) {
-        setAuthAlert('Por favor, informe um endereço de e-mail válido.', 'error');
-        return;
+      btn.disabled = true;
+      btn.textContent = 'Entrando...';
+
+      try {
+        const { data, error } = await sb.auth.signInWithPassword({ email, password });
+        if (error) {
+          if (error.message.includes('Invalid login credentials')) {
+            throw new Error('E-mail ou senha inválidos.');
+          }
+          if (error.message.includes('Email not confirmed')) {
+            throw new Error('E-mail ainda não confirmado. Verifique sua caixa de entrada ou desative a confirmação no Supabase.');
+          }
+          throw error;
+        }
+        await enterWorkspace(data.user);
+      } catch (err) {
+        showFeedback(err.message || 'Erro ao fazer login.', true);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Acessar Madalux';
       }
-      if (!password || password.length < 4) {
-        setAuthAlert('Informe sua senha para acessar o Madalux.', 'error');
-        return;
-      }
-
-      // Check if user was registered as pending in this preview session
-      const pendingMatch = appState.pendingUsers.find(
-        (u) => u.email.toLowerCase() === email && u.status === 'pending'
-      );
-      if (pendingMatch && email !== ADMIN_EMAIL.toLowerCase()) {
-        setAuthAlert(
-          `A conta de ${pendingMatch.name} (${email}) ainda está aguardando aprovação na fila administrativa.`,
-          'error'
-        );
-        return;
-      }
-
-      const isAdmin = email === ADMIN_EMAIL.toLowerCase();
-      const derivedName = isAdmin
-        ? 'Lucas Gabriel Leite'
-        : email.split('@')[0].replace(/[._-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-
-      openWorkspace({
-        name: derivedName,
-        email,
-        role: isAdmin ? 'admin' : 'member'
-      });
-      showToast(`Bem-vindo ao Madalux, ${derivedName}.`, 'success');
     });
 
-    document.getElementById('register-form').addEventListener('submit', (e) => {
+    document.getElementById('form-register').addEventListener('submit', async (e) => {
       e.preventDefault();
-      setAuthAlert('');
+      hideFeedback();
 
-      const name = document.getElementById('reg-name').value.trim();
+      const fullName = document.getElementById('reg-name').value.trim();
       const email = document.getElementById('reg-email').value.trim().toLowerCase();
-      const password = document.getElementById('reg-password').value;
+      const password = document.getElementById('reg-pass').value;
+      const btn = document.getElementById('btn-register');
 
-      if (!name || !email || password.length < 6) {
-        setAuthAlert('Preencha nome, e-mail válido e senha com pelo menos 6 caracteres.', 'error');
-        return;
-      }
+      btn.disabled = true;
+      btn.textContent = 'Enviando...';
 
-      const exists = appState.pendingUsers.some((u) => u.email.toLowerCase() === email);
-      if (!exists) {
-        const today = new Date().toLocaleDateString('pt-BR');
-        appState.pendingUsers.unshift({
-          id: `usr-${Date.now()}`,
-          name,
+      try {
+        const { data, error } = await sb.auth.signUp({
           email,
-          requestedAt: today,
-          role: 'Familiar',
-          status: 'pending'
+          password,
+          options: { data: { full_name: fullName } }
         });
-      }
+        if (error) throw error;
 
-      updatePendingBadge();
-      setAuthAlert(
-        `Solicitação registrada para ${name} (${email}). Ela já aparece na aba Admin para aprovação ou você pode usar o Modo Demonstração.`,
-        'success'
-      );
-      document.getElementById('register-form').reset();
+        if (data.user) {
+          const isAdmin = email === ADMIN_EMAIL.toLowerCase();
+          await sb.from('profiles').upsert({
+            id: data.user.id,
+            email,
+            full_name: fullName,
+            role: isAdmin ? 'admin' : 'user',
+            status: isAdmin ? 'approved' : 'pending'
+          });
+        }
+
+        showFeedback(
+          email === ADMIN_EMAIL.toLowerCase()
+            ? 'Conta admin criada. Faça login agora.'
+            : 'Cadastro enviado. Aguarde aprovação do administrador.',
+          false
+        );
+        setAuthTab('login');
+      } catch (err) {
+        showFeedback(err.message || 'Erro ao cadastrar.', true);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Enviar Solicitação';
+      }
     });
 
-    function enterDemoWorkspace(role = 'admin') {
-      setAuthAlert('');
-      openWorkspace({
-        name: role === 'admin' ? 'Lucas Gabriel Leite (Demo)' : 'Convidado Madalux',
-        email: role === 'admin' ? ADMIN_EMAIL : 'convidado@madalux.app',
-        role
-      });
-      showToast('Modo Demonstração ativado com dados financeiros interativos.', 'info');
+    async function enterWorkspace(user) {
+      currentUser = user;
+      const isAdminEmail = (user.email || '').toLowerCase() === ADMIN_EMAIL.toLowerCase();
+
+      let { data: profile } = await sb
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (!profile) {
+        const created = {
+          id: user.id,
+          email: user.email,
+          full_name: user.user_metadata?.full_name || user.email.split('@')[0],
+          role: isAdminEmail ? 'admin' : 'user',
+          status: isAdminEmail ? 'approved' : 'pending'
+        };
+        const { data: inserted } = await sb.from('profiles').upsert(created).select().single();
+        profile = inserted || created;
+      }
+
+      if (!isAdminEmail && profile.status !== 'approved') {
+        await sb.auth.signOut();
+        throw new Error('Seu acesso está pendente de aprovação pelo administrador.');
+      }
+
+      currentProfile = profile;
+      document.getElementById('auth-view').classList.add('hidden');
+      document.getElementById('app-view').classList.remove('hidden');
+      document.getElementById('session-user').textContent = `${profile.full_name} • ${profile.email}`;
+      document.getElementById('nav-admin').classList.toggle('hidden', !isAdminEmail && profile.role !== 'admin');
+
+      await loadUserData();
+      navigate('dashboard');
     }
 
-    function openWorkspace(user) {
-      appState.sessionUser = user;
-      document.getElementById('auth-screen').classList.add('hidden');
-      document.getElementById('app-screen').classList.remove('hidden');
-
-      document.getElementById('user-badge').textContent = `${user.name} • ${user.email}`;
-      const rolePill = document.getElementById('role-pill');
-      rolePill.textContent = user.role === 'admin' ? 'Admin' : 'Membro';
-
-      updatePendingBadge();
-      navigateTo(appState.activeRoute || 'dashboard');
-    }
-
-    function returnToLogin() {
+    async function signOutApp() {
+      await sb.auth.signOut();
       destroyCharts();
-      document.getElementById('app-screen').classList.add('hidden');
-      document.getElementById('auth-screen').classList.remove('hidden');
-      switchAuthTab('login');
-      showToast('Sessão encerrada. Você retornou à tela de acesso.', 'info');
+      currentUser = null;
+      currentProfile = null;
+      document.getElementById('app-view').classList.add('hidden');
+      document.getElementById('auth-view').classList.remove('hidden');
+      setAuthTab('login');
     }
 
-    // ==================== PRIVACY TOGGLE ====================
-    function togglePrivacyMode() {
-      appState.privacyMasked = !appState.privacyMasked;
-      const icon = document.getElementById('privacy-icon');
-      const label = document.getElementById('privacy-text');
+    // =========================================================================
+    // 4. PERSISTÊNCIA NO SUPABASE (user_data)
+    // =========================================================================
+    async function loadUserData() {
+      const { data } = await sb
+        .from('user_data')
+        .select('payload')
+        .eq('user_id', currentUser.id)
+        .maybeSingle();
 
-      if (appState.privacyMasked) {
-        icon.setAttribute('data-lucide', 'eye-off');
-        label.textContent = 'Oculto';
+      if (data?.payload) {
+        state = {
+          balance: 0,
+          income: 0,
+          expense: 0,
+          transactions: Array.isArray(data.payload.transactions) ? data.payload.transactions : [],
+          goals: Array.isArray(data.payload.goals) ? data.payload.goals : []
+        };
+      }
+      recalculateTotals();
+    }
+
+    async function saveUserData() {
+      const syncEl = document.getElementById('sync-status');
+      syncEl.textContent = 'Salvando...';
+      syncEl.className = 'text-[11px] text-[#D4B16A]';
+
+      recalculateTotals();
+      const { error } = await sb
+        .from('user_data')
+        .upsert({ user_id: currentUser.id, payload: state });
+
+      if (error) {
+        syncEl.textContent = 'Erro ao salvar';
+        syncEl.className = 'text-[11px] text-rose-400';
+        console.error('Erro ao salvar user_data:', error);
       } else {
-        icon.setAttribute('data-lucide', 'eye');
-        label.textContent = 'Visível';
+        syncEl.textContent = 'Sincronizado';
+        syncEl.className = 'text-[11px] text-emerald-400/80';
       }
-
-      refreshIcons();
-      renderCurrentRoute();
     }
 
-    // ==================== NAVIGATION & RENDERING ====================
-    function navigateTo(route) {
-      appState.activeRoute = route;
-
-      document.querySelectorAll('.nav-tab').forEach((btn) => {
-        const isActive = btn.dataset.route === route;
-        btn.className = isActive
-          ? 'nav-tab px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-[#087F5B] text-white shadow-sm transition cursor-pointer flex items-center gap-1.5 shrink-0'
-          : 'nav-tab px-3 py-2 rounded-xl text-xs sm:text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800/80 transition cursor-pointer flex items-center gap-1.5 shrink-0';
-      });
-
-      renderCurrentRoute();
+    function recalculateTotals() {
+      let inc = 0;
+      let exp = 0;
+      for (const tx of state.transactions) {
+        const v = Number(tx.amount) || 0;
+        if (tx.type === 'income') inc += v;
+        else exp += v;
+      }
+      state.income = inc;
+      state.expense = exp;
+      state.balance = inc - exp;
     }
 
-    function renderCurrentRoute() {
-      destroyCharts();
-      const container = document.getElementById('workspace-main');
-
-      if (appState.activeRoute === 'dashboard') {
-        renderDashboard(container);
-      } else if (appState.activeRoute === 'lancamentos') {
-        renderLancamentos(container);
-      } else if (appState.activeRoute === 'metas') {
-        renderMetas(container);
-      } else if (appState.activeRoute === 'admin') {
-        renderAdmin(container);
-      }
-
-      refreshIcons();
+    function togglePrivacy() {
+      privacyHidden = !privacyHidden;
+      document.getElementById('privacy-label').textContent = privacyHidden ? 'Oculto' : 'Visível';
+      navigate(activeRoute);
     }
 
     function destroyCharts() {
-      chartInstances.forEach((chart) => {
-        try {
-          chart.destroy();
-        } catch (_) {}
+      charts.forEach((c) => {
+        try { c.destroy(); } catch (_) {}
       });
-      chartInstances = [];
+      charts = [];
     }
 
-    // ==================== 1. DASHBOARD VIEW ====================
-    function renderDashboard(container) {
-      const { balance, income, expense } = computeTotals();
-      const savingsRate = income > 0 ? Math.max(0, Math.round(((income - expense) / income) * 100)) : 0;
+    // =========================================================================
+    // 5. NAVEGAÇÃO E TELAS
+    // =========================================================================
+    function navigate(route) {
+      activeRoute = route;
+      destroyCharts();
 
-      const recentTx = [...appState.transactions]
-        .sort((a, b) => b.date.localeCompare(a.date))
-        .slice(0, 5);
+      document.querySelectorAll('.nav-btn').forEach((btn) => {
+        const isCurrent = btn.dataset.nav === route;
+        btn.className = isCurrent
+          ? 'nav-btn px-3 py-1.5 rounded-lg bg-[#087F5B] text-white font-medium cursor-pointer'
+          : btn.dataset.nav === 'admin'
+            ? 'nav-btn px-3 py-1.5 rounded-lg text-[#D4B16A] hover:bg-slate-800 cursor-pointer'
+            : 'nav-btn px-3 py-1.5 rounded-lg text-slate-300 hover:bg-slate-800 cursor-pointer';
+      });
 
-      container.innerHTML = `
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
-          <div>
-            <h2 class="text-xl sm:text-2xl font-bold text-white">Visão Consolidada</h2>
-            <p class="text-xs sm:text-sm text-slate-400">Acompanhamento patrimonial, fluxo mensal e metas ativas.</p>
+      if (route === 'dashboard') renderDashboard();
+      else if (route === 'lancamentos') renderTransactions();
+      else if (route === 'metas') renderGoals();
+      else if (route === 'admin') renderAdmin();
+    }
+
+    // -------------------- DASHBOARD --------------------
+    function renderDashboard() {
+      const main = document.getElementById('main-content');
+      const totalGoalsSaved = state.goals.reduce((acc, g) => acc + (Number(g.current) || 0), 0);
+      const recentTx = state.transactions.slice(0, 5);
+
+      main.innerHTML = `
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div class="bg-[#202B3A] border border-[#D4B16A]/30 rounded-2xl p-5">
+            <p class="text-xs text-slate-400">Saldo Consolidado</p>
+            <p class="num text-2xl font-bold text-[#D4B16A] mt-1">${brl(state.balance)}</p>
           </div>
-          <div class="flex items-center gap-2">
-            <button type="button" onclick="navigateTo('lancamentos')"
-              class="px-4 py-2 rounded-xl bg-[#087F5B] hover:bg-[#099268] text-white text-xs sm:text-sm font-semibold transition cursor-pointer flex items-center gap-1.5">
-              <i data-lucide="plus" class="w-4 h-4"></i>
-              <span>Novo Lançamento</span>
-            </button>
+          <div class="bg-[#202B3A] border border-slate-700/80 rounded-2xl p-5">
+            <p class="text-xs text-slate-400">Receitas Totais</p>
+            <p class="num text-2xl font-bold text-emerald-400 mt-1">${brl(state.income)}</p>
           </div>
-        </div>
-
-        <!-- KPI Cards -->
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-          <div class="bg-[#202B3A] border border-[#D4B16A]/35 rounded-2xl p-5 shadow-lg">
-            <div class="flex items-center justify-between mb-2">
-              <span class="text-xs font-medium uppercase tracking-wider text-slate-400">Saldo Consolidado</span>
-              <span class="w-8 h-8 rounded-lg bg-[#D4B16A]/15 text-[#D4B16A] flex items-center justify-center">
-                <i data-lucide="wallet" class="w-4 h-4"></i>
-              </span>
-            </div>
-            <p class="num text-2xl sm:text-3xl font-bold ${balance >= 0 ? 'text-[#D4B16A]' : 'text-rose-400'}">
-              ${formatBRL(balance)}
-            </p>
-            <p class="text-xs text-slate-400 mt-2">Taxa de poupança do período: <span class="num text-emerald-400 font-semibold">${savingsRate}%</span></p>
+          <div class="bg-[#202B3A] border border-slate-700/80 rounded-2xl p-5">
+            <p class="text-xs text-slate-400">Despesas Totais</p>
+            <p class="num text-2xl font-bold text-rose-400 mt-1">${brl(state.expense)}</p>
           </div>
-
-          <div class="bg-[#202B3A] border border-slate-700/80 rounded-2xl p-5 shadow-lg">
-            <div class="flex items-center justify-between mb-2">
-              <span class="text-xs font-medium uppercase tracking-wider text-slate-400">Receitas</span>
-              <span class="w-8 h-8 rounded-lg bg-emerald-500/15 text-emerald-400 flex items-center justify-center">
-                <i data-lucide="trending-up" class="w-4 h-4"></i>
-              </span>
-            </div>
-            <p class="num text-2xl sm:text-3xl font-bold text-emerald-400">${formatBRL(income)}</p>
-            <p class="text-xs text-slate-400 mt-2">Entradas registradas no mês</p>
-          </div>
-
-          <div class="bg-[#202B3A] border border-slate-700/80 rounded-2xl p-5 shadow-lg">
-            <div class="flex items-center justify-between mb-2">
-              <span class="text-xs font-medium uppercase tracking-wider text-slate-400">Despesas</span>
-              <span class="w-8 h-8 rounded-lg bg-rose-500/15 text-rose-400 flex items-center justify-center">
-                <i data-lucide="trending-down" class="w-4 h-4"></i>
-              </span>
-            </div>
-            <p class="num text-2xl sm:text-3xl font-bold text-rose-400">${formatBRL(expense)}</p>
-            <p class="text-xs text-slate-400 mt-2">Saídas consolidadas por categoria</p>
+          <div class="bg-[#202B3A] border border-slate-700/80 rounded-2xl p-5">
+            <p class="text-xs text-slate-400">Acumulado em Metas</p>
+            <p class="num text-2xl font-bold text-sky-400 mt-1">${brl(totalGoalsSaved)}</p>
           </div>
         </div>
 
-        <!-- Charts Grid -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          <div class="bg-[#202B3A] border border-slate-700/80 rounded-2xl p-5 shadow-lg">
-            <div class="flex items-center justify-between mb-4">
-              <div>
-                <h3 class="text-sm sm:text-base font-semibold text-white">Fluxo de Caixa Mensal</h3>
-                <p class="text-xs text-slate-400">Receitas vs. Despesas (últimos 6 meses)</p>
-              </div>
-              <span class="text-[11px] text-[#D4B16A] font-medium">BRL</span>
-            </div>
-            <div class="relative h-64 w-full">
-              <canvas id="cashflow-chart"></canvas>
+          <div class="bg-[#202B3A] border border-slate-700/80 rounded-2xl p-5">
+            <h2 class="text-sm font-semibold text-[#D4B16A] mb-4">Receitas vs. Despesas</h2>
+            <div class="h-64">
+              <canvas id="chart-flow"></canvas>
             </div>
           </div>
 
-          <div class="bg-[#202B3A] border border-slate-700/80 rounded-2xl p-5 shadow-lg">
-            <div class="flex items-center justify-between mb-4">
-              <div>
-                <h3 class="text-sm sm:text-base font-semibold text-white">Distribuição de Despesas</h3>
-                <p class="text-xs text-slate-400">Participação por categoria</p>
-              </div>
-              <span class="text-[11px] text-slate-400">Categorias</span>
-            </div>
-            <div class="relative h-64 w-full flex items-center justify-center">
-              <canvas id="category-chart"></canvas>
+          <div class="bg-[#202B3A] border border-slate-700/80 rounded-2xl p-5">
+            <h2 class="text-sm font-semibold text-[#D4B16A] mb-4">Despesas por Categoria</h2>
+            <div class="h-64 flex items-center justify-center">
+              <canvas id="chart-cat"></canvas>
             </div>
           </div>
         </div>
 
-        <!-- Recent Activity Preview -->
-        <div class="bg-[#202B3A] border border-slate-700/80 rounded-2xl p-5 shadow-lg">
-          <div class="flex items-center justify-between mb-4">
-            <h3 class="text-sm sm:text-base font-semibold text-white">Últimos Lançamentos</h3>
-            <button type="button" onclick="navigateTo('lancamentos')" class="text-xs text-[#D4B16A] hover:underline cursor-pointer">
-              Ver todos (${appState.transactions.length})
+        <div class="bg-[#202B3A] border border-slate-700/80 rounded-2xl p-5">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="text-sm font-semibold text-white">Últimos Lançamentos</h2>
+            <button onclick="navigate('lancamentos')" class="text-xs text-[#D4B16A] hover:underline cursor-pointer">
+              Ver todos
             </button>
           </div>
-          <div class="divide-y divide-slate-800">
-            ${recentTx.map((tx) => `
-              <div class="py-3 flex items-center justify-between gap-3">
-                <div class="min-w-0">
-                  <p class="text-sm font-medium text-slate-100 truncate">${tx.description}</p>
-                  <p class="text-xs text-slate-400">${tx.category} • ${formatDateBR(tx.date)}</p>
-                </div>
-                <span class="num text-sm font-semibold shrink-0 ${tx.type === 'income' ? 'text-emerald-400' : 'text-rose-400'}">
-                  ${tx.type === 'income' ? '+' : '-'} ${formatBRL(tx.amount)}
-                </span>
-              </div>
-            `).join('')}
+          <div class="space-y-2">
+            ${
+              recentTx.length
+                ? recentTx.map((t) => `
+                  <div class="flex items-center justify-between py-2.5 px-3.5 rounded-xl bg-[#101C2C] text-sm">
+                    <div>
+                      <p class="font-medium text-slate-200">${escapeHtml(t.description)}</p>
+                      <p class="text-[11px] text-slate-400">${escapeHtml(t.category \vert{}\vert{} 'Geral')} •${new Date(t.date).toLocaleDateString('pt-BR')}</p>
+                    </div>
+                    <span class="num font-semibold ${t.type === 'income' ? 'text-emerald-400' : 'text-rose-400'}">
+                      ${t.type === 'income' ? '+' : '-'}${brl(t.amount)}
+                    </span>
+                  </div>
+                `).join('')
+                : '<p class="text-xs text-slate-400">Nenhum lançamento registrado ainda.</p>'
+            }
           </div>
         </div>
       `;
 
-      buildDashboardCharts(income, expense);
-    }
-
-    function buildDashboardCharts(currentIncome, currentExpense) {
-      const cashflowCanvas = document.getElementById('cashflow-chart');
-      const categoryCanvas = document.getElementById('category-chart');
-      if (!cashflowCanvas || !categoryCanvas || !window.Chart) return;
-
-      const labels = ['Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov'];
-      const incomeSeries = [14200, 15100, 14650, 16200, 15800, currentIncome];
-      const expenseSeries = [7900, 8450, 7600, 8920, 8100, currentExpense];
-
-      const cfChart = new Chart(cashflowCanvas.getContext('2d'), {
-        type: 'bar',
-        data: {
-          labels,
-          datasets: [
-            {
-              label: 'Receitas',
-              data: incomeSeries,
-              backgroundColor: '#087F5B',
-              borderRadius: 6,
-              maxBarThickness: 22
-            },
-            {
-              label: 'Despesas',
-              data: expenseSeries,
-              backgroundColor: '#D4B16A',
-              borderRadius: 6,
-              maxBarThickness: 22
-            }
-          ]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: {
-              labels: { color: '#CBD5E1', boxWidth: 12, font: { size: 11 } }
-            },
-            tooltip: {
-              callbacks: {
-                label: (ctx) => `${ctx.dataset.label}: ${appState.privacyMasked ? 'R$ ••••••' : formatBRL(ctx.parsed.y)}`
-              }
-            }
+      // Gráfico 1: Barras Receitas x Despesas
+      const ctx1 = document.getElementById('chart-flow');
+      if (ctx1) {
+        charts.push(new Chart(ctx1, {
+          type: 'bar',
+          data: {
+            labels: ['Receitas', 'Despesas', 'Saldo'],
+            datasets: [{
+              label: 'Valores (R$)',
+              data: [state.income, state.expense, Math.max(state.balance, 0)],
+              backgroundColor: ['#10B981', '#F43F5E', '#D4B16A'],
+              borderRadius: 8
+            }]
           },
-          scales: {
-            x: {
-              ticks: { color: '#94A3B8', font: { size: 11 } },
-              grid: { display: false }
-            },
-            y: {
-              ticks: {
-                color: '#94A3B8',
-                font: { size: 11 },
-                callback: (val) => appState.privacyMasked ? '••••' : `R$ ${(val / 1000).toFixed(0)}k`
-              },
-              grid: { color: 'rgba(148, 163, 184, 0.1)' }
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+              x: { ticks: { color: '#94A3B8' }, grid: { display: false } },
+              y: { ticks: { color: '#94A3B8' }, grid: { color: 'rgba(148,163,184,0.1)' } }
             }
           }
-        }
-      });
-
-      // Aggregate expense categories
-      const catTotals = {};
-      for (const tx of appState.transactions) {
-        if (tx.type === 'expense') {
-          catTotals[tx.category] = (catTotals[tx.category] || 0) + Number(tx.amount || 0);
-        }
+        }));
       }
-      const catEntries = Object.entries(catTotals);
-      const catLabels = catEntries.length ? catEntries.map(([k]) => k) : ['Sem despesas'];
-      const catValues = catEntries.length ? catEntries.map(([, v]) => v) : [1];
-      const palette = ['#D4B16A', '#087F5B', '#38BDF8', '#F43F5E', '#A78BFA'];
 
-      const catChart = new Chart(categoryCanvas.getContext('2d'), {
-        type: 'doughnut',
-        data: {
-          labels: catLabels,
-          datasets: [
-            {
-              data: catValues,
-              backgroundColor: catLabels.map((_, idx) => palette[idx % palette.length]),
-              borderColor: '#202B3A',
-              borderWidth: 3
-            }
-          ]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          cutout: '64%',
-          plugins: {
-            legend: {
-              position: 'right',
-              labels: { color: '#CBD5E1', boxWidth: 12, font: { size: 11 } }
-            },
-            tooltip: {
-              callbacks: {
-                label: (ctx) => `${ctx.label}: ${appState.privacyMasked ? 'R$ ••••••' : formatBRL(ctx.parsed)}`
+      // Gráfico 2: Rosca Despesas por Categoria
+      const ctx2 = document.getElementById('chart-cat');
+      if (ctx2) {
+        const byCat = {};
+        state.transactions
+          .filter((t) => t.type === 'expense')
+          .forEach((t) => {
+            const cat = t.category || 'Outros';
+            byCat[cat] = (byCat[cat] || 0) + (Number(t.amount) || 0);
+          });
+
+        const labels = Object.keys(byCat);
+        const values = Object.values(byCat);
+
+        charts.push(new Chart(ctx2, {
+          type: 'doughnut',
+          data: {
+            labels: labels.length ? labels : ['Sem despesas'],
+            datasets: [{
+              data: values.length ? values : [1],
+              backgroundColor: values.length
+                ? ['#D4B16A', '#087F5B', '#38BDF8', '#F43F5E', '#A78BFA', '#FB923C', '#94A3B8']
+                : ['#334155'],
+              borderWidth: 0
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: 'right',
+                labels: { color: '#CBD5E1', boxWidth: 12, font: { size: 11 } }
               }
             }
           }
-        }
-      });
-
-      chartInstances.push(cfChart, catChart);
-    }
-
-    // ==================== 2. LANÇAMENTOS VIEW ====================
-    function renderLancamentos(container) {
-      const { balance, income, expense } = computeTotals();
-
-      const categories = ['All', ...new Set(appState.transactions.map((t) => t.category))];
-      const filtered = appState.transactions.filter((tx) => {
-        const typeOk = appState.txFilterType === 'all' || tx.type === appState.txFilterType;
-        const catOk = appState.txFilterCategory === 'all' || tx.category === appState.txFilterCategory;
-        return typeOk && catOk;
-      });
-
-      container.innerHTML = `
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
-          <div>
-            <h2 class="text-xl sm:text-2xl font-bold text-white">Lançamentos Financeiros</h2>
-            <p class="text-xs sm:text-sm text-slate-400">Adicione receitas ou despesas com recálculo instantâneo do saldo.</p>
-          </div>
-          <div class="flex items-center gap-3 bg-[#202B3A] border border-slate-700/80 px-4 py-2.5 rounded-xl">
-            <span class="text-xs text-slate-400">Saldo Atual:</span>
-            <span class="num text-sm sm:text-base font-bold ${balance >= 0 ? 'text-[#D4B16A]' : 'text-rose-400'}">${formatBRL(balance)}</span>
-          </div>
-        </div>
-
-        <!-- Add Transaction Card -->
-        <div class="bg-[#202B3A] border border-slate-700/80 rounded-2xl p-5 mb-6 shadow-lg">
-          <h3 class="text-sm font-semibold text-[#D4B16A] mb-4 flex items-center gap-2">
-            <i data-lucide="plus-circle" class="w-4 h-4"></i>
-            <span>Registrar Novo Lançamento</span>
-          </h3>
-          <form id="tx-create-form" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
-            <div class="lg:col-span-2">
-              <label for="tx-desc" class="block text-[11px] text-slate-400 mb-1">Descrição</label>
-              <input id="tx-desc" type="text" required placeholder="Ex.: Jantar em família ou Honorários"
-                class="w-full px-3.5 py-2.5 rounded-xl bg-[#101C2C] border border-slate-700 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#D4B16A]" />
-            </div>
-
-            <div>
-              <label for="tx-amount" class="block text-[11px] text-slate-400 mb-1">Valor (R$)</label>
-              <input id="tx-amount" type="number" step="0.01" min="0.01" required placeholder="450.00"
-                class="w-full px-3.5 py-2.5 rounded-xl bg-[#101C2C] border border-slate-700 text-sm text-white num placeholder-slate-500 focus:outline-none focus:border-[#D4B16A]" />
-            </div>
-
-            <div>
-              <label for="tx-type" class="block text-[11px] text-slate-400 mb-1">Tipo</label>
-              <select id="tx-type"
-                class="w-full px-3.5 py-2.5 rounded-xl bg-[#101C2C] border border-slate-700 text-sm text-white focus:outline-none focus:border-[#D4B16A]">
-                <option value="expense">Despesa</option>
-                <option value="income">Receita</option>
-              </select>
-            </div>
-
-            <div>
-              <label for="tx-category" class="block text-[11px] text-slate-400 mb-1">Categoria</label>
-              <select id="tx-category"
-                class="w-full px-3.5 py-2.5 rounded-xl bg-[#101C2C] border border-slate-700 text-sm text-white focus:outline-none focus:border-[#D4B16A]">
-                <option value="Moradia">Moradia</option>
-                <option value="Alimentação">Alimentação</option>
-                <option value="Saúde">Saúde</option>
-                <option value="Investimentos">Investimentos</option>
-                <option value="Estilo de Vida">Estilo de Vida</option>
-                <option value="Receitas">Receitas</option>
-              </select>
-            </div>
-
-            <div class="flex items-end">
-              <button type="submit"
-                class="w-full py-2.5 px-4 rounded-xl bg-[#087F5B] hover:bg-[#099268] text-white text-sm font-semibold transition cursor-pointer flex items-center justify-center gap-1.5">
-                <i data-lucide="check" class="w-4 h-4"></i>
-                <span>Adicionar</span>
-              </button>
-            </div>
-          </form>
-        </div>
-
-        <!-- Filters & List -->
-        <div class="bg-[#202B3A] border border-slate-700/80 rounded-2xl p-5 shadow-lg">
-          <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 mb-4 border-b border-slate-800">
-            <div class="flex flex-wrap items-center gap-2">
-              <button type="button" onclick="setTxTypeFilter('all')"
-                class="px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition ${appState.txFilterType === 'all' ? 'bg-[#D4B16A] text-[#101C2C] font-semibold' : 'bg-[#101C2C] text-slate-300 hover:text-white'}">
-                Todos (${appState.transactions.length})
-              </button>
-              <button type="button" onclick="setTxTypeFilter('income')"
-                class="px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition ${appState.txFilterType === 'income' ? 'bg-emerald-500 text-[#101C2C] font-semibold' : 'bg-[#101C2C] text-slate-300 hover:text-white'}">
-                Receitas (${formatBRL(income)})
-              </button>
-              <button type="button" onclick="setTxTypeFilter('expense')"
-                class="px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition ${appState.txFilterType === 'expense' ? 'bg-rose-400 text-[#101C2C] font-semibold' : 'bg-[#101C2C] text-slate-300 hover:text-white'}">
-                Despesas (${formatBRL(expense)})
-              </button>
-            </div>
-
-            <div class="flex items-center gap-2">
-              <label for="filter-cat-select" class="text-xs text-slate-400">Categoria:</label>
-              <select id="filter-cat-select" onchange="setTxCategoryFilter(this.value)"
-                class="px-3 py-1.5 rounded-lg bg-[#101C2C] border border-slate-700 text-xs text-slate-200 focus:outline-none focus:border-[#D4B16A]">
-                ${categories.map((cat) => `
-                  <option value="${cat === 'All' ? 'all' : cat}" ${(cat === 'All' ? 'all' : cat) === appState.txFilterCategory ? 'selected' : ''}>
-                    ${cat === 'All' ? 'Todas' : cat}
-                  </option>
-                `).join('')}
-              </select>
-            </div>
-          </div>
-
-          ${filtered.length === 0 ? `
-            <div class="py-10 text-center text-slate-400 text-sm">
-              Nenhum lançamento corresponde aos filtros selecionados.
-            </div>
-          ` : `
-            <div class="divide-y divide-slate-800">
-              ${filtered.map((tx) => `
-                <div class="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-slate-800/30 px-2 rounded-xl transition">
-                  <div class="flex items-start sm:items-center gap-3 min-w-0">
-                    <div class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${tx.type === 'income' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-rose-500/15 text-rose-400'}">
-                      <i data-lucide="${tx.type === 'income' ? 'arrow-down-left' : 'arrow-up-right'}" class="w-4 h-4"></i>
-                    </div>
-                    <div class="min-w-0">
-                      <p class="text-sm font-medium text-white truncate">${tx.description}</p>
-                      <p class="text-xs text-slate-400">${tx.category} • ${formatDateBR(tx.date)}</p>
-                    </div>
-                  </div>
-
-                  <div class="flex items-center justify-between sm:justify-end gap-4 pl-12 sm:pl-0">
-                    <span class="num text-sm font-bold ${tx.type === 'income' ? 'text-emerald-400' : 'text-rose-400'}">
-                      ${tx.type === 'income' ? '+' : '-'} ${formatBRL(tx.amount)}
-                    </span>
-                    <button type="button" onclick="deleteTransaction('${tx.id}')" title="Excluir lançamento"
-                      class="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition cursor-pointer">
-                      <i data-lucide="trash-2" class="w-4 h-4"></i>
-                    </button>
-                  </div>
-                </div>
-              `).join('')}
-            </div>
-          `}
-        </div>
-      `;
-
-      document.getElementById('tx-create-form').addEventListener('submit', (e) => {
-        e.preventDefault();
-        const description = document.getElementById('tx-desc').value.trim();
-        const amount = parseFloat(document.getElementById('tx-amount').value);
-        const type = document.getElementById('tx-type').value;
-        const category = document.getElementById('tx-category').value;
-
-        if (!description || isNaN(amount) || amount <= 0) {
-          showToast('Informe uma descrição e um valor positivo válido.', 'error');
-          return;
-        }
-
-        const todayIso = new Date().toISOString().slice(0, 10);
-        appState.transactions.unshift({
-          id: `tx-${Date.now()}`,
-          date: todayIso,
-          description,
-          category,
-          type,
-          amount
-        });
-
-        showToast(`${type === 'income' ? 'Receita' : 'Despesa'} adicionada e saldo recalculado.`, 'success');
-        renderCurrentRoute();
-      });
-    }
-
-    function setTxTypeFilter(type) {
-      appState.txFilterType = type;
-      renderCurrentRoute();
-    }
-
-    function setTxCategoryFilter(category) {
-      appState.txFilterCategory = category;
-      renderCurrentRoute();
-    }
-
-    function deleteTransaction(id) {
-      appState.transactions = appState.transactions.filter((t) => t.id !== id);
-      showToast('Lançamento removido e saldo atualizado.', 'info');
-      renderCurrentRoute();
-    }
-
-    // ==================== 3. METAS VIEW ====================
-    function renderMetas(container) {
-      container.innerHTML = `
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
-          <div>
-            <h2 class="text-xl sm:text-2xl font-bold text-white">Metas Patrimoniais</h2>
-            <p class="text-xs sm:text-sm text-slate-400">Acompanhe o progresso e realize aportes rápidos em cada objetivo.</p>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
-          ${appState.goals.map((goal) => {
-            const pct = Math.min(100, Math.round((goal.current / Math.max(1, goal.target)) * 100));
-            return `
-              <div class="bg-[#202B3A] border border-slate-700/80 rounded-2xl p-5 shadow-lg flex flex-col justify-between">
-                <div>
-                  <div class="flex items-start justify-between gap-2 mb-3">
-                    <h3 class="text-base font-semibold text-white leading-snug">${goal.title}</h3>
-                    <span class="text-[11px] px-2.5 py-0.5 rounded-full bg-[#101C2C] text-[#D4B16A] border border-[#D4B16A]/30 shrink-0">
-                      ${goal.deadline}
-                    </span>
-                  </div>
-
-                  <div class="flex items-baseline justify-between gap-2 mb-2">
-                    <span class="num text-lg font-bold text-[#D4B16A]">${formatBRL(goal.current)}</span>
-                    <span class="num text-xs text-slate-400">de ${formatBRL(goal.target)}</span>
-                  </div>
-
-                  <!-- Progress Bar -->
-                  <div class="w-full h-2.5 bg-[#101C2C] rounded-full overflow-hidden mb-2">
-                    <div class="h-full bg-gradient-to-r from-[#087F5B] to-[#D4B16A] rounded-full transition-all duration-300" style="width: ${pct}%"></div>
-                  </div>
-                  <p class="num text-xs text-emerald-400 font-medium mb-5">${pct}% concluído</p>
-                </div>
-
-                <button type="button" onclick="openContributionModal('${goal.id}')"
-                  class="w-full py-2.5 px-4 rounded-xl bg-[#087F5B] hover:bg-[#099268] text-white text-xs sm:text-sm font-semibold transition cursor-pointer flex items-center justify-center gap-2">
-                  <i data-lucide="piggy-bank" class="w-4 h-4"></i>
-                  <span>Aporte Rápido</span>
-                </button>
-              </div>
-            `;
-          }).join('')}
-        </div>
-      `;
-    }
-
-    function openContributionModal(goalId) {
-      const goal = appState.goals.find((g) => g.id === goalId);
-      if (!goal) return;
-      document.getElementById('contribution-goal-id').value = goal.id;
-      document.getElementById('contribution-goal-name').textContent = `${goal.title} • Atual: ${formatBRL(goal.current)}`;
-      document.getElementById('contribution-amount').value = '';
-      document.getElementById('contribution-modal').classList.remove('hidden');
-      document.getElementById('contribution-amount').focus();
-      refreshIcons();
-    }
-
-    function closeContributionModal() {
-      document.getElementById('contribution-modal').classList.add('hidden');
-    }
-
-    document.getElementById('contribution-form').addEventListener('submit', (e) => {
-      e.preventDefault();
-      const goalId = document.getElementById('contribution-goal-id').value;
-      const amount = parseFloat(document.getElementById('contribution-amount').value);
-
-      if (isNaN(amount) || amount <= 0) {
-        showToast('Digite um valor de aporte válido.', 'error');
-        return;
-      }
-
-      const goal = appState.goals.find((g) => g.id === goalId);
-      if (goal) {
-        goal.current = Number(goal.current) + amount;
-        showToast(`Aporte de ${formatBRL(amount)} adicionado à meta "${goal.title}".`, 'success');
-      }
-
-      closeContributionModal();
-      renderCurrentRoute();
-    });
-
-    // ==================== 4. ADMIN APPROVAL QUEUE VIEW ====================
-    function updatePendingBadge() {
-      const count = appState.pendingUsers.filter((u) => u.status === 'pending').length;
-      const badge = document.getElementById('pending-count-badge');
-      if (badge) {
-        badge.textContent = String(count);
-        badge.classList.toggle('hidden', count === 0);
+        }));
       }
     }
 
-    function renderAdmin(container) {
-      const pending = appState.pendingUsers.filter((u) => u.status === 'pending');
-      const approved = appState.pendingUsers.filter((u) => u.status === 'approved');
-
-      container.innerHTML = `
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
-          <div>
-            <h2 class="text-xl sm:text-2xl font-bold text-white">Administração & Aprovações</h2>
-            <p class="text-xs sm:text-sm text-slate-400">Gerencie solicitações de acesso pendentes ao ambiente Madalux.</p>
-          </div>
-          <span class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-[#202B3A] border border-[#D4B16A]/35 text-xs text-[#D4B16A] font-medium self-start sm:self-auto">
-            <i data-lucide="shield" class="w-3.5 h-3.5"></i>
-            <span>${pending.length} pendente(s)</span>
-          </span>
-        </div>
-
-        <!-- Pending Queue -->
-        <div class="bg-[#202B3A] border border-slate-700/80 rounded-2xl p-5 mb-6 shadow-lg">
-          <h3 class="text-sm font-semibold text-[#D4B16A] mb-4">Fila de Aprovação Pendente</h3>
-          ${pending.length === 0 ? `
-            <p class="text-xs sm:text-sm text-slate-400 py-4">Nenhuma solicitação pendente no momento.</p>
-          ` : `
-            <div class="divide-y divide-slate-800">
-              ${pending.map((usr) => `
-                <div class="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div>
-                    <p class="text-sm font-semibold text-white">${usr.name}</p>
-                    <p class="text-xs text-slate-400">${usr.email} • Perfil: ${usr.role} • Solicitado em ${usr.requestedAt}</p>
-                  </div>
-                  <div class="flex items-center gap-2">
-                    <button type="button" onclick="decideUserApproval('${usr.id}', 'approved')"
-                      class="px-3.5 py-2 rounded-xl bg-[#087F5B] hover:bg-[#099268] text-white text-xs font-semibold transition cursor-pointer flex items-center gap-1.5">
-                      <i data-lucide="check" class="w-3.5 h-3.5"></i>
-                      <span>Aprovar</span>
-                    </button>
-                    <button type="button" onclick="decideUserApproval('${usr.id}', 'rejected')"
-                      class="px-3.5 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-200 text-xs font-medium transition cursor-pointer flex items-center gap-1.5">
-                      <i data-lucide="x" class="w-3.5 h-3.5"></i>
-                      <span>Recusar</span>
-                    </button>
-                  </div>
-                </div>
-              `).join('')}
-            </div>
-          `}
-        </div>
-
-        <!-- Approved Members -->
-        <div class="bg-[#202B3A] border border-slate-700/80 rounded-2xl p-5 shadow-lg">
-          <h3 class="text-sm font-semibold text-white mb-3">Usuários Aprovados (${approved.length})</h3>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            ${approved.map((usr) => `
-              <div class="p-3.5 rounded-xl bg-[#101C2C] border border-slate-800 flex items-center justify-between gap-2">
-                <div class="min-w-0">
-                  <p class="text-sm font-medium text-white truncate">${usr.name}</p>
-                  <p class="text-xs text-slate-400 truncate">${usr.email}</p>
-                </div>
-                <span class="text-[11px] px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-300 font-medium shrink-0">
-                  Aprovado
-                </span>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-      `;
-    }
-
-    function decideUserApproval(userId, decision) {
-      const target = appState.pendingUsers.find((u) => u.id === userId);
-      if (!target) return;
-
-      if (decision === 'approved') {
-        target.status = 'approved';
-        showToast(`Acesso aprovado para ${target.name}.`, 'success');
-      } else {
-        appState.pendingUsers = appState.pendingUsers.filter((u) => u.id !== userId);
-        showToast(`Solicitação de ${target.name} recusada e removida.`, 'info');
-      }
-
-      updatePendingBadge();
-      renderCurrentRoute();
-    }
-
-    // ==================== INITIALIZATION ====================
-    document.addEventListener('DOMContentLoaded', () => {
-      updatePendingBadge();
-      refreshIcons();
-    });
-  </script>
-</body>
-</html>
+    // -------------------- LANÇAMENTOS --------------------
+    function renderTransactions(filterType = 'all') {
+      const main = document.getElementById
