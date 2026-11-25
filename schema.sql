@@ -1,7 +1,11 @@
--- 1. Extensão para UUID (geralmente já ativa no Supabase)
+-- ============================================================================
+-- MADALUX / MADALUZ CONTROLE FINANCEIRO — ESQUEMA COMPLETO SUPABASE (POSTGRES)
+-- ============================================================================
+
+-- 1. Extensão para geração de UUID
 create extension if not exists "pgcrypto";
 
--- 2. Tabela de perfis de usuário
+-- 2. Tabela de perfis de usuários e controle de aprovação
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   email text not null unique,
@@ -15,11 +19,11 @@ create table if not exists public.profiles (
 -- 3. Tabela de dados financeiros por usuário
 create table if not exists public.user_data (
   user_id uuid primary key references public.profiles(id) on delete cascade,
-  payload jsonb not null default '{}'::jsonb,
+  payload jsonb not null default '{"balance":0,"income":0,"expense":0,"transactions":[],"goals":[]}'::jsonb,
   updated_at timestamptz not null default now()
 );
 
--- 4. Tabela de log de ações administrativas
+-- 4. Tabela de auditoria de ações administrativas
 create table if not exists public.admin_actions (
   id uuid primary key default gen_random_uuid(),
   admin_id uuid not null references public.profiles(id) on delete cascade,
@@ -29,12 +33,13 @@ create table if not exists public.admin_actions (
   created_at timestamptz not null default now()
 );
 
--- Índices úteis
+-- 5. Índices para consultas rápidas
 create index if not exists idx_profiles_status on public.profiles(status);
 create index if not exists idx_profiles_role on public.profiles(role);
+create index if not exists idx_profiles_email on public.profiles(lower(email));
 create index if not exists idx_admin_actions_created_at on public.admin_actions(created_at desc);
 
--- 5. Função auxiliar para atualizar updated_at automaticamente
+-- 6. Função genérica para atualizar updated_at
 create or replace function public.handle_updated_at()
 returns trigger
 language plpgsql
@@ -57,7 +62,7 @@ before update on public.user_data
 for each row
 execute function public.handle_updated_at();
 
--- 6. Função auxiliar para verificar se o usuário autenticado é admin
+-- 7. Função auxiliar para verificar se o usuário autenticado é administrador
 create or replace function public.is_admin()
 returns boolean
 language sql
@@ -76,7 +81,9 @@ as $$
   );
 $$;
 
--- 7. Trigger ao criar usuário no auth.users -> cria linha em profiles e user_data
+-- 8. Trigger na criação de usuário em auth.users
+-- Cria automaticamente o registro em profiles e user_data;
+-- aprova automaticamente lucasgabriel.leite3@gmail.com como admin.
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -104,7 +111,10 @@ begin
   on conflict (id) do update
   set
     email = excluded.email,
-    full_name = case when public.profiles.full_name = '' then excluded.full_name else public.profiles.full_name end,
+    full_name = case
+      when public.profiles.full_name = '' then excluded.full_name
+      else public.profiles.full_name
+    end,
     role = case when v_is_admin then 'admin' else public.profiles.role end,
     status = case when v_is_admin then 'approved' else public.profiles.status end;
 
@@ -125,7 +135,7 @@ after insert on auth.users
 for each row
 execute function public.handle_new_user();
 
--- 8. RPC segura para alterar status/papel de usuário (apenas admin)
+-- 9. RPC segura para alterar status ou papel de um usuário (somente admin)
 create or replace function public.set_user_status(
   p_target_user_id uuid,
   p_new_status text,
@@ -183,16 +193,15 @@ begin
 end;
 $$;
 
--- Permissões de execução da RPC
 revoke all on function public.set_user_status(uuid, text, text) from public;
 grant execute on function public.set_user_status(uuid, text, text) to authenticated;
 
--- 9. Ativar Row Level Security (RLS)
+-- 10. Ativação do Row Level Security (RLS)
 alter table public.profiles enable row level security;
 alter table public.user_data enable row level security;
 alter table public.admin_actions enable row level security;
 
--- Políticas para profiles
+-- Políticas de acesso: profiles
 drop policy if exists "profiles_select_own_or_admin" on public.profiles;
 create policy "profiles_select_own_or_admin"
 on public.profiles
@@ -221,7 +230,7 @@ with check (
   )
 );
 
--- Políticas para user_data
+-- Políticas de acesso: user_data
 drop policy if exists "user_data_all_own_or_admin" on public.user_data;
 create policy "user_data_all_own_or_admin"
 on public.user_data
@@ -230,7 +239,7 @@ to authenticated
 using (user_id = auth.uid() or public.is_admin())
 with check (user_id = auth.uid() or public.is_admin());
 
--- Políticas para admin_actions
+-- Políticas de acesso: admin_actions
 drop policy if exists "admin_actions_select_admin" on public.admin_actions;
 create policy "admin_actions_select_admin"
 on public.admin_actions
@@ -244,3 +253,38 @@ on public.admin_actions
 for insert
 to authenticated
 with check (public.is_admin() and admin_id = auth.uid());
+
+-- 11. Backfill para usuários já existentes em auth.users
+insert into public.profiles (id, email, full_name, role, status)
+select
+  u.id,
+  lower(u.email),
+  coalesce(
+    nullif(trim(u.raw_user_meta_data->>'full_name'), ''),
+    case
+      when lower(u.email) = 'lucasgabriel.leite3@gmail.com' then 'Lucas Gabriel Ferreira Leite'
+      else split_part(u.email, '@', 1)
+    end
+  ),
+  case when lower(u.email) = 'lucasgabriel.leite3@gmail.com' then 'admin' else 'user' end,
+  case when lower(u.email) = 'lucasgabriel.leite3@gmail.com' then 'approved' else 'pending' end
+from auth.users u
+where u.email is not null
+on conflict (id) do update
+set
+  email = excluded.email,
+  role = case
+    when lower(excluded.email) = 'lucasgabriel.leite3@gmail.com' then 'admin'
+    else public.profiles.role
+  end,
+  status = case
+    when lower(excluded.email) = 'lucasgabriel.leite3@gmail.com' then 'approved'
+    else public.profiles.status
+  end;
+
+insert into public.user_data (user_id, payload)
+select
+  p.id,
+  '{"balance":0,"income":0,"expense":0,"transactions":[],"goals":[]}'::jsonb
+from public.profiles p
+on conflict (user_id) do nothing;
